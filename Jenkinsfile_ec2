@@ -1,0 +1,59 @@
+pipeline {
+  agent any
+  environment {
+    COURSE = 'Calgary DevOps'
+    BRANCH = 'master'
+    WWWROOT = '/var/www'
+    SSHUSER = 'jenkins'
+    SSHKEY = '/var/lib/jenkins/.ssh/first-key.pem'
+    WEBSERVER = 'ec2web02'
+  }
+  stages {
+    stage('Audit Tools') {
+      steps {
+        echo "Audit all tools to be use on this pipeline ${BRANCH}"
+        sh "git --version"
+        sh "node --version"
+        sh "npm --version"
+        sh "npm view react version"
+        sh "ansible --version"
+        echo "Workspace Folder: ${WORKSPACE}"
+      }
+    }
+    stage('Install packages') {
+      steps {
+        sh "git pull origin ${BRANCH}"
+      }
+    }
+    stage('Install Front-End Packages') {
+      steps {
+        dir("${WORKSPACE}/edlink-ui") {
+          echo "Install edlink UI packages"
+          sh "npm install"
+        }
+      }
+    }
+    stage('Run linting') {
+      steps {
+        dir("${WORKSPACE}/edlink-ui") {
+          echo "npm run lint"
+        }
+      }
+    }
+    stage('Build UI') {
+      steps {
+        dir("${WORKSPACE}/edlink-ui") {
+          sh "npm run build"
+        }
+      }
+    }
+    stage('Deploy app to WEB02') {
+      steps {
+        sh "sudo ssh -i ${SSHKEY} ${SSHUSER}@${WEBSERVER} rm -rf /home/${SSHUSER}/conduit"
+        sh "sudo scp -i ${SSHKEY} -r ${WORKSPACE}/edlink-ui/dist ${SSHUSER}@${WEBSERVER}:/home/${SSHUSER}/edlink"
+        sh "sudo ssh -i ${SSHKEY} ${SSHUSER}@${WEBSERVER} sudo rm -rf ${WWWROOT}/edlinkt"
+        sh "sudo ssh -i ${SSHKEY} ${SSHUSER}@${WEBSERVER} sudo cp -r /home/${SSHUSER}/edlink ${WWWROOT}/edlink"
+      }
+    }
+  }
+}
